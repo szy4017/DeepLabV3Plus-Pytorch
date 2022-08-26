@@ -103,7 +103,8 @@ class VOCSegmentation(data.Dataset):
         
         self.image_set = image_set
         base_dir = DATASET_YEAR_DICT[year]['base_dir']
-        voc_root = os.path.join(self.root, base_dir)
+        # voc_root = os.path.join(self.root, base_dir)
+        voc_root = self.root
         image_dir = os.path.join(voc_root, 'JPEGImages')
 
         if download:
@@ -119,7 +120,7 @@ class VOCSegmentation(data.Dataset):
             split_f = os.path.join( self.root, 'train_aug.txt')#'./datasets/data/train_aug.txt'
         else:
             mask_dir = os.path.join(voc_root, 'SegmentationClass')
-            splits_dir = os.path.join(voc_root, 'ImageSets/Segmentation')
+            splits_dir = os.path.join(voc_root, 'ImageSets\\Segmentation')
             split_f = os.path.join(splits_dir, image_set.rstrip('\n') + '.txt')
 
         if not os.path.exists(split_f):

@@ -24,7 +24,7 @@ def get_argparser():
     parser = argparse.ArgumentParser()
 
     # Datset Options
-    parser.add_argument("--input", type=str, required=True,
+    parser.add_argument("--input", type=str, default=None,
                         help="path to a single image or image directory")
     parser.add_argument("--dataset", type=str, default='voc',
                         choices=['voc', 'cityscapes'], help='Name of training set')
@@ -60,8 +60,18 @@ def get_argparser():
 
 def main():
     opts = get_argparser().parse_args()
+    opts.input = '.\\test_input'
+    opts.dataset = 'voc'
+    # opts.ckpt = '.\\checkpoints\\best_deeplabv3_mobilenet_voc_os16.pth'
+    # opts.ckpt = '.\\checkpoints\\latest_deeplabv3_mobilenet_voc_os16.pth'
+    # opts.ckpt = '.\\checkpoints\\latest_deeplabv3_mobilenet_voc_os16_focal.pth'
+    opts.ckpt = '.\\checkpoints\\latest_deeplabv3_mobilenet_voc_os16_weight.pth'
+    opts.model = 'deeplabv3_mobilenet'
+    opts.save_val_results_to = 'test_results'
+
     if opts.dataset.lower() == 'voc':
-        opts.num_classes = 21
+        # opts.num_classes = 21
+        opts.num_classes = 2
         decode_fn = VOCSegmentation.decode_target
     elif opts.dataset.lower() == 'cityscapes':
         opts.num_classes = 19
@@ -129,9 +139,11 @@ def main():
             
             pred = model(img).max(1)[1].cpu().numpy()[0] # HW
             colorized_preds = decode_fn(pred).astype('uint8')
+            colorized_preds_one = colorized_preds[:, :, 0]
             colorized_preds = Image.fromarray(colorized_preds)
             if opts.save_val_results_to:
                 colorized_preds.save(os.path.join(opts.save_val_results_to, img_name+'.png'))
 
 if __name__ == '__main__':
+
     main()

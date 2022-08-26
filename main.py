@@ -210,8 +210,14 @@ def validate(opts, model, loader, device, metrics, ret_samples_ids=None):
 
 def main():
     opts = get_argparser().parse_args()
+    opts.data_root = '.\\datasets\\voc_mine'
+    opts.ckpt = '.\\checkpoints\\best_deeplabv3_mobilenet_voc_os16.pth'
+    opts.model = 'deeplabv3_mobilenet'
+    opts.val_interval = 100
+    # opts.loss_type = 'focal_loss'
     if opts.dataset.lower() == 'voc':
-        opts.num_classes = 21
+        # opts.num_classes = 21
+        opts.num_classes = 2
     elif opts.dataset.lower() == 'cityscapes':
         opts.num_classes = 19
 
@@ -269,7 +275,7 @@ def main():
     if opts.loss_type == 'focal_loss':
         criterion = utils.FocalLoss(ignore_index=255, size_average=True)
     elif opts.loss_type == 'cross_entropy':
-        criterion = nn.CrossEntropyLoss(ignore_index=255, reduction='mean')
+        criterion = nn.CrossEntropyLoss(ignore_index=255, weight=torch.tensor([1., 5.]) , reduction='mean')
 
     def save_ckpt(path):
         """ save current model
@@ -291,6 +297,16 @@ def main():
     if opts.ckpt is not None and os.path.isfile(opts.ckpt):
         # https://github.com/VainF/DeepLabV3Plus-Pytorch/issues/8#issuecomment-605601402, @PytaichukBohdan
         checkpoint = torch.load(opts.ckpt, map_location=torch.device('cpu'))
+        checkpoint_classifier_w = checkpoint["model_state"]["classifier.classifier.4.weight"]
+        checkpoint_classifier_b = checkpoint["model_state"]["classifier.classifier.4.bias"]
+        checkpoint["model_state"]["classifier.classifier.4.weight"] = checkpoint_classifier_w[0:2, :, :, :]
+        checkpoint["model_state"]["classifier.classifier.4.bias"] = checkpoint_classifier_b[0:2]
+        # state_dict = dict()
+        # for k, v in checkpoint['model_state'].items():
+        #     if k in model.keys():
+        #         if v.shape == model[k].shape:
+        #             state_dict[k] = v
+        # model.load_state_dict(state_dict)
         model.load_state_dict(checkpoint["model_state"])
         model = nn.DataParallel(model)
         model.to(device)
@@ -332,7 +348,19 @@ def main():
 
             optimizer.zero_grad()
             outputs = model(images)
-            loss = criterion(outputs, labels)
+
+            ll = labels[:, :, :, 0]
+            ll_one = ll[0].numpy()
+            ll_s = ll.size()
+            ll_num = ll_s[0] * ll_s[1] * ll_s[2]
+            ll = torch.where(ll > 0, 1, 0)
+            ll_sum = ll.sum().numpy()
+            print('ratios: ', ll_sum/ll_num)
+
+            l = labels[:, :, :, 0]
+            l = torch.where(l > 0, 1, 0)
+            loss = criterion(outputs, l)
+            print('loss: ', loss)
             loss.backward()
             optimizer.step()
 
@@ -348,7 +376,7 @@ def main():
                 interval_loss = 0.0
 
             if (cur_itrs) % opts.val_interval == 0:
-                save_ckpt('checkpoints/latest_%s_%s_os%d.pth' %
+                save_ckpt('checkpoints/latest_%s_%s_os%d_weight.pth' %
                           (opts.model, opts.dataset, opts.output_stride))
                 print("validation...")
                 model.eval()
